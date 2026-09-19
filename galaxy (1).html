@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuestra Galaxia</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    width: 100%;
+    height: 100%;
+  }
+  #info {
+    position: absolute;
+    top: 15px;
+    width: 100%;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+    font-size: 14px;
+    letter-spacing: 1px;
+    z-index: 10;
+  }
+  canvas { display: block; }
+
+  #caption-panel {
+    position: absolute;
+    left: 50%;
+    bottom: 40px;
+    transform: translateX(-50%) translateY(30px);
+    max-width: min(90vw, 420px);
+    background: rgba(20, 10, 25, 0.85);
+    border: 1px solid rgba(255, 180, 220, 0.4);
+    border-radius: 16px;
+    padding: 18px 22px;
+    color: #ffeef7;
+    text-align: center;
+    font-size: 17px;
+    line-height: 1.4;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    box-shadow: 0 0 30px rgba(255, 120, 180, 0.25);
+    z-index: 20;
+  }
+  #caption-panel.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  #caption-close {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 18px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="info">Arrastra para girar la galaxia | Rueda para zoom | Toca una foto
+  asi es cuando te digo que tu eres mi GALAXIA cada ountito un te amo mi amor
+</div>
+<div id="caption-panel">
+  <button id="caption-close">✕</button>
+  <div id="caption-text"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// =====================================================================
+// DATOS: reemplaza "img" con tus fotos en base64 cuando las subas.
+// Mientras "img" sea null, se muestra un marcador de posición.
+// =====================================================================
+const photosData = [
+  { img: "img/WhatsApp Image 2026-09-18 at 11.45.12 PM.jpeg", caption: "Nuestra primera foto juntos 💛 esta foto trae muchos recuerdos ", position: [-11, 9, 4] },
+  { img: "img/WhatsApp Image 2026-09-18 at 11.45.51 PM.jpeg", caption: "Mi persona favorita,Mi esposa dinda✨", position: [11, 9, -4] },
+];
+
+const loveMessages = [
+  "Te amo", "Eres preciosa", "Amor de mi vida", "Me encantas",
+  "Mi persona favorita", "Contigo siempre", "Te adoro", "My Love",
+  "Eres mi hogar", "No hay nadie como tú", "Mi lugar favorito eres tú",
+  "Gracias por existir", "Te elijo cada día", "Mi mejor decisión",
+  "Contigo todo es mejor", "Eres mi calma"
+];
+
+// Escena, cámara y renderizador
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const initialCameraPos = new THREE.Vector3(0, 30, 55);
+camera.position.copy(initialCameraPos);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.enableRotate = false;   // la rotación la maneja el arrastre manual de la galaxia
+controls.enableZoom = true;
+controls.enablePan = false;
+controls.minDistance = 8;
+controls.maxDistance = 200;
+
+const coreLight = new THREE.PointLight(0xffaa55, 3, 300);
+scene.add(coreLight);
+scene.add(new THREE.AmbientLight(0x332233));
+
+// Todo lo que gira junto (galaxia, corazón, fotos, mensajes) vive aquí
+const galaxySystem = new THREE.Group();
+scene.add(galaxySystem);
+
+const core = new THREE.Mesh(
+  new THREE.SphereGeometry(2, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffddaa })
+);
+galaxySystem.add(core);
+
+// Estrellas de fondo
+const starCount = 3000;
+const starGeometry = new THREE.BufferGeometry();
+const starPositions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount * 3; i++) starPositions[i] = (Math.random() - 0.5) * 400;
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({
+  color: 0xffffff, size: 0.6, transparent: true, opacity: 0.7, sizeAttenuation: true
+})));
+
+// Galaxia espiral
+const gp = { count: 60000, radius: 40, branches: 5, spin: 1.2, randomness: 0.4, randomnessPower: 3 };
+const colorInside = new THREE.Color('#ffb677');
+const colorOutside = new THREE.Color('#d46fd4');
+const galaxyGeometry = new THREE.BufferGeometry();
+const positions = new Float32Array(gp.count * 3);
+const colors = new Float32Array(gp.count * 3);
+for (let i = 0; i < gp.count; i++) {
+  const i3 = i * 3;
+  const radius = Math.random() * gp.radius;
+  const branchAngle = ((i % gp.branches) / gp.branches) * Math.PI * 2;
+  const spinAngle = radius * gp.spin;
+  const rx = Math.pow(Math.random(), gp.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * gp.randomness * radius;
+  const ry = Math.pow(Math.random(), gp.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * gp.randomness * radius * 0.3;
+  const rz = Math.pow(Math.random(), gp.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * gp.randomness * radius;
+  positions[i3] = Math.cos(branchAngle + spinAngle) * radius + rx;
+  positions[i3 + 1] = ry;
+  positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + rz;
+  const mixed = colorInside.clone().lerp(colorOutside, radius / gp.radius);
+  colors[i3] = mixed.r; colors[i3 + 1] = mixed.g; colors[i3 + 2] = mixed.b;
+}
+galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+galaxyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+const galaxy = new THREE.Points(galaxyGeometry, new THREE.PointsMaterial({
+  size: 0.25, sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true
+}));
+galaxySystem.add(galaxy);
+
+// ---------------------------------------------------------------------
+// Helpers para generar texturas en canvas (texto y marcador de foto)
+// ---------------------------------------------------------------------
+function createTextSprite(text) {
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  measureCtx.font = 'bold 52px sans-serif';
+  const textWidth = measureCtx.measureText(text).width;
+  const padding = 70;
+  const canvasWidth = Math.ceil(textWidth) + padding * 2;
+  const canvasHeight = 128;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 52px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(255, 209, 102, 0.9)';
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(text, canvasWidth / 2, canvasHeight / 2);
+  ctx.shadowBlur = 0;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  const spriteHeight = 2.25;
+  sprite.scale.set(spriteHeight * (canvasWidth / canvasHeight), spriteHeight, 1);
+  return sprite;
+}
+
+function createPhotoTexture(imgDataUrl, ready) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  function drawFrame() {
+    ctx.save();
+    const r = 40;
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.arcTo(512, 0, 512, 512, r);
+    ctx.arcTo(512, 512, 0, 512, r);
+    ctx.arcTo(0, 512, 0, 0, r);
+    ctx.arcTo(0, 0, 512, 0, r);
+    ctx.closePath();
+    ctx.clip();
+  }
+
+  function drawGlowBorder() {
+    ctx.restore();
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = 'rgba(255,190,230,0.9)';
+    ctx.shadowColor = 'rgba(255,150,210,1)';
+    ctx.shadowBlur = 30;
+    ctx.strokeRect(7, 7, 498, 498);
+    ctx.shadowBlur = 0;
+  }
+
+  if (imgDataUrl) {
+    const image = new Image();
+    image.onload = () => {
+      drawFrame();
+      ctx.drawImage(image, 0, 0, 512, 512);
+      drawGlowBorder();
+      ready(new THREE.CanvasTexture(canvas));
+    };
+    image.src = imgDataUrl;
+  } else {
+    drawFrame();
+    const grad = ctx.createLinearGradient(0, 0, 512, 512);
+    grad.addColorStop(0, '#3a1f3f');
+    grad.addColorStop(1, '#7a3d6a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = '90px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📷', 256, 220);
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('Sube tu foto aquí', 256, 300);
+    drawGlowBorder();
+    ready(new THREE.CanvasTexture(canvas));
+  }
+}
+
+// Mensajes flotando alrededor de la galaxia (distribución esférica pareja)
+const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+loveMessages.forEach((msg, i) => {
+  const sprite = createTextSprite(msg);
+  const y = 1 - (i / (loveMessages.length - 1)) * 2;
+  const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = goldenAngle * i;
+  const r = 20 + (i % 3) * 4;
+  sprite.position.set(
+    Math.cos(theta) * radiusAtY * r,
+    y * 8 + 16,
+    Math.sin(theta) * radiusAtY * r
+  );
+  galaxySystem.add(sprite);
+});
+
+// Corazón de partículas sobre el núcleo (billboard hacia la cámara)
+const heartGroup = new THREE.Group();
+const heartCount = 800;
+const heartPositions = new Float32Array(heartCount * 3);
+for (let i = 0; i < heartCount; i++) {
+  const t = Math.random() * Math.PI * 2;
+  const scale = 0.45;
+  const hx = 16 * Math.pow(Math.sin(t), 3) * scale;
+  const hy = (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * scale;
+  heartPositions[i * 3] = hx + (Math.random() - 0.5) * 0.6;
+  heartPositions[i * 3 + 1] = hy + (Math.random() - 0.5) * 0.6 + 14;
+  heartPositions[i * 3 + 2] = (Math.random() - 0.5) * 0.6;
+}
+const heartGeometry = new THREE.BufferGeometry();
+heartGeometry.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
+const heartPoints = new THREE.Points(heartGeometry, new THREE.PointsMaterial({
+  color: 0xff6347, size: 0.5, transparent: true, opacity: 0.9,
+  blending: THREE.AdditiveBlending, depthWrite: false
+}));
+heartGroup.add(heartPoints);
+galaxySystem.add(heartGroup);
+
+// Fotos clicleables
+const photoSprites = [];
+photosData.forEach((data) => {
+  createPhotoTexture(data.img, (texture) => {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    sprite.scale.set(7, 7, 1);
+    sprite.position.set(data.position[0], data.position[1], data.position[2]);
+    sprite.userData.caption = data.caption;
+    galaxySystem.add(sprite);
+    photoSprites.push(sprite);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Interacción: click en una foto -> zoom + texto
+// ---------------------------------------------------------------------
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let flightTarget = null;
+let isFocused = false;
+
+const captionPanel = document.getElementById('caption-panel');
+const captionText = document.getElementById('caption-text');
+const captionClose = document.getElementById('caption-close');
+
+function focusPhoto(sprite) {
+  isFocused = true;
+  spinSpeed = 0;
+  const worldPos = new THREE.Vector3();
+  sprite.getWorldPosition(worldPos);
+  const dir = worldPos.clone().normalize();
+  const camPos = worldPos.clone().add(dir.multiplyScalar(9)).add(new THREE.Vector3(0, 1.5, 0));
+  flightTarget = { pos: camPos, look: worldPos };
+  captionText.textContent = sprite.userData.caption || '';
+  captionPanel.classList.add('visible');
+}
+
+function unfocus() {
+  isFocused = false;
+  captionPanel.classList.remove('visible');
+  flightTarget = { pos: initialCameraPos.clone(), look: new THREE.Vector3(0, 0, 0) };
+}
+captionClose.addEventListener('click', unfocus);
+
+function onPointerClick(event) {
+  if (isFocused || dragDistance > 6) return;
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(photoSprites);
+  if (intersects.length > 0) focusPhoto(intersects[0].object);
+}
+renderer.domElement.addEventListener('click', onPointerClick);
+
+function onPointerMove(event) {
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  if (!isDragging) {
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(photoSprites).length > 0;
+    renderer.domElement.style.cursor = hit ? 'pointer' : 'grab';
+  }
+}
+renderer.domElement.addEventListener('pointermove', onPointerMove);
+
+// ---------------------------------------------------------------------
+// Arrastrar para girar TODA la galaxia (con inercia)
+// ---------------------------------------------------------------------
+let isDragging = false;
+let dragDistance = 0;
+let lastPointer = { x: 0, y: 0 };
+let spinSpeed = 0.0015;   // velocidad de giro actual en Y
+const idleSpin = 0.0015;  // velocidad a la que vuelve cuando se suelta
+let tiltSpeed = 0;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (isFocused) return;
+  isDragging = true;
+  dragDistance = 0;
+  lastPointer = { x: e.clientX, y: e.clientY };
+  renderer.domElement.style.cursor = 'grabbing';
+});
+window.addEventListener('pointermove', (e) => {
+  if (!isDragging || isFocused) return;
+  const dx = e.clientX - lastPointer.x;
+  const dy = e.clientY - lastPointer.y;
+  dragDistance += Math.abs(dx) + Math.abs(dy);
+  const rotSpeed = 0.006;
+  galaxySystem.rotation.y += dx * rotSpeed;
+  galaxySystem.rotation.x = THREE.MathUtils.clamp(galaxySystem.rotation.x + dy * rotSpeed, -0.6, 0.6);
+  spinSpeed = dx * rotSpeed;
+  tiltSpeed = dy * rotSpeed;
+  lastPointer = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('pointerup', () => {
+  isDragging = false;
+  renderer.domElement.style.cursor = 'grab';
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (!isFocused) {
+    if (!isDragging) {
+      spinSpeed += (idleSpin - spinSpeed) * 0.02;
+      tiltSpeed *= 0.94;
+      galaxySystem.rotation.x = THREE.MathUtils.lerp(galaxySystem.rotation.x, 0, 0.01);
+    }
+    galaxySystem.rotation.y += spinSpeed;
+  }
+
+  // El corazón usa Points (no Sprite), así que hay que orientarlo
+  // manualmente hacia la cámara, compensando el giro del grupo padre.
+  const parentInverse = galaxySystem.quaternion.clone().invert();
+  heartGroup.quaternion.copy(parentInverse).multiply(camera.quaternion);
+
+  if (flightTarget) {
+    camera.position.lerp(flightTarget.pos, 0.06);
+    controls.target.lerp(flightTarget.look, 0.06);
+    if (camera.position.distanceTo(flightTarget.pos) < 0.15) flightTarget = null;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
