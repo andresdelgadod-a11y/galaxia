@@ -62,11 +62,31 @@
     font-size: 18px;
     cursor: pointer;
   }
+  /* Para celulares */
+@media (max-width: 600px) {
+  #info {
+    top: 5px;
+    font-size: 12px;
+    padding: 0 10px;
+    box-sizing: border-box;
+  }
+
+  #caption-panel {
+    bottom: 20px;
+    transform: translateX(-50%) translateY(0);
+    font-size: 14px;
+  }
+
+  canvas {
+    width: 100%;
+    height: auto;
+  }
+}
 </style>
 </head>
 <body>
 <div id="info">Arrastra para girar la galaxia | Rueda para zoom | Toca una foto
-  asi es cuando te digo que tu eres mi GALAXIA cada ountito un te amo mi amor
+  asi es cuando te digo que tu eres mi GALAXIA cada puntito un te amo mi amor
 </div>
 <div id="caption-panel">
   <button id="caption-close">✕</button>
